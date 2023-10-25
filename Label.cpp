@@ -1,7 +1,11 @@
+ï»¿#define _CRT_SECURE_NO_WARNINGS
 #include "Label.h"
 #include "strconv.h"
 
-
+#include <stdlib.h>
+#include <wchar.h>
+#include <iostream>
+#include "support_gl_Vector.h"
 
 Label::Label() :
 	text(""),
@@ -24,8 +28,22 @@ Label::~Label() {
 
 void Label::SetString(std::string _str) {
 	text = _str;
-	wtext = utf8_to_wide(text);
-	wtext = L"abcd efghijklmn\n‚¤‚¦";
+	//wtext = utf8_to_wide(text);
+	wtext = L"ABCpyj\nABCDEFG";
+	
+	char src[] = u8"ã‚ã„ã†ãˆãŠ";
+	char* ploc = setlocale(LC_ALL, "ja_JP.utf8");
+	size_t len = mbstowcs(nullptr, src, 0);
+	if (len != (size_t)-1)
+	{
+		wchar_t* pdst = new wchar_t[len + 1];
+		memset(pdst, 0, (sizeof(wchar_t) * (len + 1)));
+		mbstowcs(pdst, src, (len + 1));
+		ploc = setlocale(LC_ALL, "japanese");
+		std::wcout << pdst << std::endl;
+		delete[] pdst;
+	}
+
 
 	for (int i = 0; wtext[i] != '\0'; i++) {
 		FontManager::GetInstance()->CreateCharacter(wtext[i]);
@@ -45,16 +63,16 @@ void Label::Update() {
 	float lineInterval = fontSize + lineSpace;
 	glm::vec2 charactorPos;
 
-	//•¶šî•ñ‚ÌƒNƒŠƒA
+	//æ–‡å­—æƒ…å ±ã®ã‚¯ãƒªã‚¢
 	for (LabelCharacter* labelCh : canvas.labelCharacters) {
 		delete labelCh;
 	}
 	canvas.labelCharacters.clear();
 
-	//Scale‚ÌŒvZ
+	//Scaleã®è¨ˆç®—
 	fontScale = (float)fontSize / (float)CREATE_FONT_SIZE;
 
-	//’PŒê‚²‚Æ‚É•ªŠ„
+	//å˜èªã”ã¨ã«åˆ†å‰²
 	std::wstring wardStr = L"";
 	std::vector<LabelWard*> tmpLabelWard;
 	LabelWard* labelWard = new LabelWard();
@@ -94,27 +112,35 @@ void Label::Update() {
 		tmpLabelWard.push_back(labelWard);
 	}
 
-	//•¶š‚Ì”z’uˆ—
+	//æ–‡å­—ã®é…ç½®å‡¦ç†
 	curPosX = 0;
 	curPosY = initPosY;
 	for (int i = 0; i < tmpLabelWard.size(); i++) {
 		float x = curPosX + tmpLabelWard[i]->width;
-		//•\¦—Ìˆæ“à‚É•¶š‚ªû‚Ü‚é‚©”»’è
-		if (canvas.size.x <= tmpLabelWard[i]->width && curPosX == 0.0f) {//TODO: float‚Ì
-			//‰üs‚¹‚¸‚»‚Ì‚Ü‚Ü•\¦
+		//è¡¨ç¤ºé ˜åŸŸå†…ã«æ–‡å­—ãŒåã¾ã‚‹ã‹åˆ¤å®š
+		if (canvas.size.x <= tmpLabelWard[i]->width && curPosX == 0.0f) {//TODO: floatã®
+			//æ”¹è¡Œã›ãšãã®ã¾ã¾è¡¨ç¤º
 		}
 		else if (canvas.size.x <= x) {
 			lineIndex++;
 			x = 0;
 			totalLineIndex = lineIndex + newLineIndex;
 			curPosX = 0;
-			curPosY = initPosY - totalLineIndex * lineInterval;
+			curPosY = initPosY + totalLineIndex * lineInterval;
 		}
 
-		//ˆê•¶š‚²‚Æ‚É”z’uˆ—
+		if (i != 0) {
+			lineIndex++;
+			totalLineIndex = lineIndex + newLineIndex;
+			curPosX = 0;
+			curPosY = initPosY + totalLineIndex * lineInterval;
+		}
+
+		//ä¸€æ–‡å­—ã”ã¨ã«é…ç½®å‡¦ç†
 		for (int k = 0; k < tmpLabelWard[i]->labelCharacters.size(); k++) {
 			LabelCharacter* labelCh = tmpLabelWard[i]->labelCharacters[k];
-			//‰üsƒR[ƒh
+			//æ”¹è¡Œã‚³ãƒ¼ãƒ‰
+			/*
 			if (labelWard->wtext[i] == NEW_LINE_CODE) {
 				newLineIndex++;
 				totalLineIndex = lineIndex + newLineIndex;
@@ -127,8 +153,9 @@ void Label::Update() {
 				tmpLineWidths[totalLineIndex] = curPosX;
 				continue;
 			}
+			*/
 
-			//•\¦—ÌˆæŠO‚Éo‚½ê‡‚Í‰üs
+			//è¡¨ç¤ºé ˜åŸŸå¤–ã«å‡ºãŸå ´åˆã¯æ”¹è¡Œ
 			if (canvas.size.x <= (curPosX + labelCh->size.x)) {
 				lineIndex++;
 				totalLineIndex = lineIndex + newLineIndex;
@@ -151,7 +178,7 @@ void Label::Update() {
 		}
 	}
 
-	//ƒAƒ‰ƒCƒƒ“ƒgˆ—
+	//ã‚¢ãƒ©ã‚¤ãƒ¡ãƒ³ãƒˆå‡¦ç†
 	for (int i = 0; i < tmpLabelCharacters.size(); i++) {
 		int width = tmpLineWidths[i];
 		float offsetX = 0;
@@ -192,50 +219,54 @@ void Label::Draw(GLuint programId) {
 	glUseProgram(programId);
 
 
-	float x = 0.0f;
-	float y = 0.0f;
+	//float x = 0.0f;
+	//float y = 0.0f;
 	
 	for (int i = 0; i < canvas.labelCharacters.size(); i++) {
 		LabelCharacter* LabelCharacter = canvas.labelCharacters[i];
 		Character* character = FontManager::GetInstance()->GetCharacterData(LabelCharacter->character);
 		
 		glm::vec2 pos = LabelCharacter->position;
-		GLfloat xpos = x + pos.x;
-		GLfloat ypos = y + pos.y;
+		GLfloat xpos = pos.x;
+		GLfloat ypos = pos.y;
 		GLfloat w = character->size.x * fontScale;
 		GLfloat h = character->size.y * fontScale;
 
 		float vertex_position[] = {
-			//0.5f, 0.5f,
-			//-0.5f, 0.5f,
-			//-0.5f, -0.5f,
-			//0.5f, -0.5f
-			FONT_POS_CONV_X(xpos + w), FONT_POS_CONV_Y(ypos + h),
-			FONT_POS_CONV_X(xpos), FONT_POS_CONV_Y(ypos + h),
-			FONT_POS_CONV_X(xpos), FONT_POS_CONV_Y(ypos),
-			FONT_POS_CONV_X(xpos + w), FONT_POS_CONV_Y(ypos)
+			0.5f, 0.5f,
+			-0.5f, 0.5f,
+			-0.5f, -0.5f,
+			0.5f, -0.5f
+			//FONT_POS_CONV_X(xpos + w), FONT_POS_CONV_Y(ypos + h),
+			//FONT_POS_CONV_X(xpos), FONT_POS_CONV_Y(ypos + h),
+			//FONT_POS_CONV_X(xpos), FONT_POS_CONV_Y(ypos),
+			//FONT_POS_CONV_X(xpos + w), FONT_POS_CONV_Y(ypos)
 		};
 
+		/*
 		const GLfloat vertex_uv[] = {
 			character->uvRect.z, character->uvRect.y,
 			character->uvRect.x, character->uvRect.y,
 			character->uvRect.x, character->uvRect.w,
 			character->uvRect.z, character->uvRect.w,
 		};
-		/*
-		const GLfloat vertex_uv[] = {
-			0.5, 0,
-			0, 0,
-			0, 0.5,
-			0.5, 0.5,
-		};
 		*/
+		const GLfloat vertex_uv[] = {
+			1, 0,
+			0, 0,
+			0, 1,
+			1, 1,
+		};
 
-		// ‰½”Ô–Ú‚Ìattribute•Ï”‚©
+		// ä½•ç•ªç›®ã®attributeå¤‰æ•°ã‹
 		int positionLocation = glGetAttribLocation(programId, "position");
 		int uvLocation = glGetAttribLocation(programId, "uv");
-		int textureLocation = glGetUniformLocation(programId, "texture");
+		int textureLocation = glGetUniformLocation(programId, "texMap");
+		int unif_matrix = glGetUniformLocation(programId, "unif_matrix");
+		int unif_uvmatrix = glGetUniformLocation(programId, "unif_uvmatrix");
 
+
+		/*
 		GLuint MatrixID = glGetUniformLocation(programId, "MVP");
 
 		float horizontalAngle = 3.14f;
@@ -257,7 +288,7 @@ void Label::Draw(GLuint programId) {
 		// Up vector
 		glm::vec3 up = glm::cross(right, direction);
 		glm::vec3 position = glm::vec3(0, 0, 5);
-		// Projection matrix : 45° Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
+		// Projection matrix : 45ï½° Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
 		glm::mat4 Projection = glm::perspective(45.0f, (float)1280 / (float)720, 0.1f, 100.0f);
 		position += direction * 2.5f;
 		// Camera matrix
@@ -270,22 +301,88 @@ void Label::Draw(GLuint programId) {
 		glm::mat4 Model = glm::mat4(1.0f);
 		// Our ModelViewProjection : multiplication of our 3 matrices
 		glm::mat4 MVP = Projection * View * Model; // Remember, matrix multiplication is the other way around
+		*/
 
 
-		// attribute‘®«‚ğ—LŒø‚É‚·‚é
+		// attributeå±æ€§ã‚’æœ‰åŠ¹ã«ã™ã‚‹
 		glEnableVertexAttribArray(positionLocation);
 		glEnableVertexAttribArray(uvLocation);
 
-		// uniform‘®«‚ğİ’è‚·‚é
-		glUniform1i(textureLocation, 0);
-		glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
+		const float scWidth = 1280;
+		const float scHeight = 720;
+		// ã‚¢ã‚¹ãƒšã‚¯ãƒˆè£œæ­£ç”¨è¡Œåˆ—
+		const GLfloat surfaceAspect = (GLfloat)scWidth / (GLfloat)scHeight;
+		const mat4 aspect = mat4_scale(1, surfaceAspect, 1);
 
-		// attribute‘®«‚ğ“o˜^
+		const GLfloat xScale = (GLfloat)character->size.x / (GLfloat)scWidth * 2.0f;
+		const GLfloat yScale = (GLfloat)character->size.y / (GLfloat)scHeight * 2.0f;
+
+		const mat4 scale = mat4_scale(xScale, yScale, 0);
+
+		float pos_x = pos.x + character->bearing.x;
+		//float pos_y = pos.y - (character->size.y - character->bearing.y);
+		static float ss_ = 2.0f;
+		//ss_ += 0.001f;
+		//float pos_y = 300 - character->size.y*2.0f - (character->bearing.y)* ss_;
+		float pos_y = pos.y - (character->bearing.y) * ss_;
+
+		// ç§»å‹•è¡Œåˆ—ã‚’ä½œæˆ
+		// å·¦ä¸Šåº§æ¨™ã¯å…ƒåº§æ¨™ã¨ã‚¹ã‚±ãƒ¼ãƒªãƒ³ã‚°å€¤ã‹ã‚‰è¨ˆç®—å¯èƒ½ã€‚1.0f - xScaleã—ã¦ã„ã‚‹ã®ã¯ç›®æ¸›ã‚Šã—ãŸé‡ã‚’è¨ˆç®—ã™ã‚‹ãŸã‚ã€‚
+		const GLfloat vertexLeft = 0.5f + (1.0f - xScale) * 0.5f;
+		const GLfloat vertexTop = 0.5f + (1.0f - (yScale * surfaceAspect)) * 0.5f;
+		const GLfloat moveX = (pos_x) / (GLfloat)scWidth * 2.0f;
+		const GLfloat moveY = -((pos_y) / (GLfloat)scHeight * 2.0f);
+
+		// å·¦ä¸Šã«ç§»å‹•ã—ã€ã•ã‚‰ã«å³ä¸‹æ–¹ã¸ã‚ªãƒ•ã‚»ãƒƒãƒˆã•ã›ã‚‹
+		mat4 translate = mat4_translate(-vertexLeft + moveX, vertexTop + moveY, 0);
+		const mat4 rotate = mat4_rotate(vec3_create(1, 0, 0), 0);
+
+		mat4 matrix = mat4_identity();
+		matrix = mat4_multiply(translate, aspect);
+		matrix = mat4_multiply(matrix, rotate);
+		matrix = mat4_multiply(matrix, scale);
+
+		/*
+		const GLfloat ancMoveX2 = (GLfloat)(spriteWidth) / (GLfloat)_size.width * _anchorpoint.x;
+		const GLfloat ancMoveY2 = (GLfloat)(spriteHeight) / (GLfloat)_size.width * _anchorpoint.y;
+		const mat4 rotTranslate0 = mat4_translate(ancMoveX2, -ancMoveY2, 0);
+		_mat = mat4_multiply(_mat, rotTranslate0);
+		_mat = mat4_multiply(_mat, rotate);
+		const mat4 rotTranslate1 = mat4_translate(-ancMoveX2, ancMoveY2, 0);
+		_mat = mat4_multiply(_mat, rotTranslate1);
+
+		_mat = mat4_multiply(_mat, scale);
+		*/
+
+
+		// uniformå±æ€§ã‚’è¨­å®šã™ã‚‹
+		glUniform1i(textureLocation, 0);
+		glUniformMatrix4fv(unif_matrix, 1, GL_FALSE, (GLfloat*)matrix.m);
+
+		{
+			GLfloat x = ((i % FONT_ATLAS_LINE_LENGTH) * FONT_ATLAS_ONE_DATA_SIZE_WIDTH);
+			GLfloat y = FONT_ATLAS_TEXTURE_SIZE_HEIGHT - character->size.y;
+			const GLfloat _xScale = (GLfloat)character->size.x / (GLfloat)FONT_ATLAS_TEXTURE_SIZE_WIDTH;
+			const GLfloat _yScale = (GLfloat)character->size.y / (GLfloat)FONT_ATLAS_TEXTURE_SIZE_HEIGHT;
+
+			const mat4 _scale = mat4_scale(_xScale, _yScale, 0);
+
+			// ç§»å‹•ã‚’è¡Œã†
+			const GLfloat _xMove = (GLfloat)x / (GLfloat)FONT_ATLAS_TEXTURE_SIZE_WIDTH;
+			const GLfloat _yMove = (GLfloat)y / (GLfloat)FONT_ATLAS_TEXTURE_SIZE_HEIGHT;
+			const mat4 _translate = mat4_translate(_xMove, _yMove, 0);
+
+			mat4 _matrix = mat4_multiply(_translate, _scale);
+			//mat4 _matrix = mat4_identity();
+			glUniformMatrix4fv(unif_uvmatrix, 1, GL_FALSE, (GLfloat*)_matrix.m);
+		}
+
+		// attributeå±æ€§ã‚’ç™»éŒ²
 		glVertexAttribPointer(positionLocation, 2, GL_FLOAT, false, 0, vertex_position);
 		glVertexAttribPointer(uvLocation, 2, GL_FLOAT, false, 0, vertex_uv);
 
 
-		// ƒ‚ƒfƒ‹‚Ì•`‰æ
+		// ãƒ¢ãƒ‡ãƒ«ã®æç”»
 		glBindTexture(GL_TEXTURE_2D, FontManager::GetInstance()->GetFontTextureId());
 		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	}

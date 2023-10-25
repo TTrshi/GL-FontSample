@@ -14,8 +14,8 @@
 #include FT_FREETYPE_H
 
 
-#define FONT_ATLAS_TEXTURE_SIZE_WIDTH		4096
-#define FONT_ATLAS_TEXTURE_SIZE_HEIGHT		4096
+#define FONT_ATLAS_TEXTURE_SIZE_WIDTH		1024
+#define FONT_ATLAS_TEXTURE_SIZE_HEIGHT		1024
 #define FONT_ATLAS_ONE_DATA_SIZE_WIDTH		64
 #define FONT_ATLAS_ONE_DATA_SIZE_HEIGHT		64
 #define FONT_ATLAS_LINE_LENGTH				(FONT_ATLAS_TEXTURE_SIZE_WIDTH / FONT_ATLAS_ONE_DATA_SIZE_WIDTH)
@@ -68,6 +68,7 @@ private:
 		GLint positionLocation;
 		GLint uvLocation;
 		GLint textureLocation;
+		GLint unif_matrix;
 	}shader;
 
 	static FontManager* instance;

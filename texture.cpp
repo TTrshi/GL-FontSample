@@ -9,6 +9,7 @@
 
 #include "fontManager.h"
 #include "Label.h"
+#include "shaderCompile.h"
 
 using namespace std;
 
@@ -17,24 +18,44 @@ const int g_height = 720;
 
 GLuint crateShader()
 {
+#if 1
     //バーテックスシェーダのコンパイル
     GLuint vShaderId = glCreateShader(GL_VERTEX_SHADER);
+    
     string vertexShader = R"#(
     attribute vec3 position;
-    attribute vec2 uv;
+    attribute vec4 uv;
     varying vec2 vuv;
-    uniform mat4 MVP;
+    //uniform mat4 MVP;
+    uniform mat4 unif_matrix;
+    uniform mat4 unif_uvmatrix;
     void main(void){
-        gl_Position =  vec4(position, 1.0);
-        vuv = uv;
+        gl_Position = unif_matrix * vec4(position, 1.0);
+        vuv = (unif_uvmatrix * uv).xy;
     }
     )#";
+
     const char* vs = vertexShader.c_str();
+    /*
+    const char* vs =
+        "#version 320 es\n"
+        //"precision highp float;\n"
+        //"precision lowp int;\n"
+        "layout( location = 0 ) in vec3 a_position;\n"
+        "layout( location = 1 ) in vec2 a_texCoord;\n"
+        "uniform mediump mat4 unif_matrix;\n"
+        "out vec2 v_texCoord;\n"
+        "void main(){\n"
+        "	gl_Position = unif_matrix * vec4(a_position, 1.0);\n"
+        "	v_texCoord = a_texCoord;\n"
+        "}\n";
+        */
     glShaderSource(vShaderId, 1, &vs, NULL);
     glCompileShader(vShaderId);
     
     //フラグメントシェーダのコンパイル
     GLuint fShaderId = glCreateShader(GL_FRAGMENT_SHADER);
+    
     string fragmentShader = R"#(
     varying vec2 vuv;
     uniform sampler2D texture;
@@ -44,6 +65,18 @@ GLuint crateShader()
     }
     )#";
     const char* fs = fragmentShader.c_str();
+    /*
+    const char* fs =
+        "#version 320 es\n"
+        //"precision highp float;\n"
+        //"precision lowp int;\n"
+        "layout( location = 0 ) out vec4 o_Color;\n"
+        "in vec2 v_texCoord;\n"
+        "uniform lowp sampler2D texMap; \n"
+        "void main() {\n"
+        "	o_Color = texture(texMap, v_texCoord);\n"
+        "}\n";
+    */
     glShaderSource(fShaderId, 1, &fs, NULL);
     glCompileShader(fShaderId);
     
@@ -56,7 +89,33 @@ GLuint crateShader()
     glLinkProgram(programId);
     
     glUseProgram(programId);
-    
+#endif
+    /*
+    const char* vs =
+        "#version 320 es\n"
+        //"precision highp float;\n"
+        //"precision lowp int;\n"
+        "layout( location = 0 ) in vec3 a_position;\n"
+        "layout( location = 1 ) in vec2 a_texCoord;\n"
+        "uniform mediump mat4 unif_matrix;\n"
+        "out vec2 v_texCoord;\n"
+        "void main(){\n"
+        "	gl_Position = unif_matrix * vec4(a_position, 1.0);\n"
+        "	v_texCoord = a_texCoord;\n"
+        "}\n";
+    const char* fs =
+        "#version 320 es\n"
+        //"precision highp float;\n"
+        //"precision lowp int;\n"
+        "layout( location = 0 ) out vec4 o_Color;\n"
+        "in vec2 v_texCoord;\n"
+        "uniform lowp sampler2D texMap; \n"
+        "void main() {\n"
+        "	o_Color = texture(texMap, v_texCoord);\n"
+        "}\n";
+    GLuint programId = Shader_createProgramFromSource(vs, fs);
+    */
+    assert(glGetError() == GL_NO_ERROR);
     return programId;
 }
 
@@ -109,10 +168,11 @@ int main()
     glfwSwapInterval(1);
 
     glewInit();
-    glEnable(GL_CULL_FACE);
+    //glEnable(GL_CULL_FACE);
     glEnable(GL_DEBUG_OUTPUT);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
     std::wstring    wstr = L"Hello world.";
     FontManager::GetInstance()->Initialize();

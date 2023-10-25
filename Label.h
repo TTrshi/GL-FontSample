@@ -1,12 +1,12 @@
-#pragma once
+ï»¿#pragma once
 #include "fontManager.h"
 #include <vector>
 
 typedef enum
 {
-	eTYPE_LABEL_ALIGN_LEFT,			//¶‘µ‚¦
-	eTYPE_LABEL_ALIGN_CENTER,		//’†‰›‘µ‚¦
-	eTYPE_LABEL_ALIGN_RIGHT			//‰E‘µ‚¦
+	eTYPE_LABEL_ALIGN_LEFT,			//å·¦æƒãˆ
+	eTYPE_LABEL_ALIGN_CENTER,		//ä¸­å¤®æƒãˆ
+	eTYPE_LABEL_ALIGN_RIGHT			//å³æƒãˆ
 }ENUM_TYPE_LABEL_ALIGN;
 
 class LabelCharacter {

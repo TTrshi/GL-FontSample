@@ -1,4 +1,5 @@
 ﻿#include "fontManager.h"
+#include "support_gl_Vector.h"
 
 
 FontManager* FontManager::instance;
@@ -36,14 +37,20 @@ void FontManager::Initialize() {
 
 	glGenRenderbuffers(1, &buffer.depthrenderbuffer);
 	glBindRenderbuffer(GL_RENDERBUFFER, buffer.depthrenderbuffer);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, FONT_ATLAS_TEXTURE_SIZE_WIDTH, FONT_ATLAS_TEXTURE_SIZE_HEIGHT);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, FONT_ATLAS_TEXTURE_SIZE_WIDTH, FONT_ATLAS_TEXTURE_SIZE_HEIGHT);
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, buffer.depthrenderbuffer);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, buffer.fontRenderedTexture, 0);
+	//assert(glGetError() != GL_NO_ERROR);
+	GLenum error = glGetError();
+	if (error != GL_NO_ERROR) {
+		std::cout << error << std::endl;
+	}
+
 	
 	//Clear Buffer
 	glBindFramebuffer(GL_FRAMEBUFFER, buffer.framebuffer);
 	glViewport(0, 0,FONT_ATLAS_TEXTURE_SIZE_WIDTH, FONT_ATLAS_TEXTURE_SIZE_HEIGHT);
-	glClearColor(0, 0, 0, 0);
+	glClearColor(0.5, 0.5, 0.5, 1);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glClearDepth(1.0);
 	
@@ -52,6 +59,7 @@ void FontManager::Initialize() {
 	shader.positionLocation = glGetAttribLocation(shader.glProgramId, ATTRIBUTE_NAME_POSITION);
 	shader.uvLocation = glGetAttribLocation(shader.glProgramId, ATTRIBUTE_NAME_UV);
 	shader.textureLocation = glGetUniformLocation(shader.glProgramId, UNIFORM_NAME_TEXTURE);
+	shader.unif_matrix = glGetUniformLocation(shader.glProgramId, "unif_matrix");
 	assert(glGetError() == GL_NO_ERROR);
 
 
@@ -146,32 +154,59 @@ bool FontManager::CreateCharacter(wchar_t _c) {
 		float y_1 = y_0 + FONT_ATLAS_ONE_DATA_UV_SIZE_HEIGHT(freetype_face->glyph->bitmap.rows);
 
 		float vertex_position[] = {
-			x_1, y_1,
-			x_0, y_1,
-			x_0, y_0,
-			x_1, y_0
+			0.5f, 0.5f,
+			-0.5f, 0.5f,
+			-0.5f, -0.5f,
+			0.5f, -0.5f
 		};
 
 		const GLfloat vertex_uv[] = {
-			1, 1,
-			0, 1,
-			0, 0,
 			1, 0,
+			0, 0,
+			0, 1,
+			1, 1,
 		};
 
 		glUseProgram(shader.glProgramId);
 		glEnableVertexAttribArray(shader.positionLocation);
-		assert(glGetError() == GL_NO_ERROR);
 		glEnableVertexAttribArray(shader.uvLocation);
-		assert(glGetError() == GL_NO_ERROR);
 		glUniform1i(shader.textureLocation, 0);
-		assert(glGetError() == GL_NO_ERROR);
+
+		const float scWidth = FONT_ATLAS_TEXTURE_SIZE_WIDTH;
+		const float scHeight = FONT_ATLAS_TEXTURE_SIZE_HEIGHT;
+		// アスペクト補正用行列
+		const GLfloat surfaceAspect = (GLfloat)FONT_ATLAS_TEXTURE_SIZE_WIDTH / (GLfloat)FONT_ATLAS_TEXTURE_SIZE_HEIGHT;
+		const mat4 aspect = mat4_scale(1, surfaceAspect, 1);
+
+		const GLfloat xScale = (GLfloat)freetype_face->glyph->bitmap.width / (GLfloat)scWidth * 2.0f;
+		const GLfloat yScale = (GLfloat)freetype_face->glyph->bitmap.rows / (GLfloat)scHeight * 2.0f;
+
+		const mat4 scale = mat4_scale(xScale, yScale, 0);
+
+		float pos_x = x;
+		//float pos_y = FONT_ATLAS_TEXTURE_SIZE_HEIGHT - FONT_ATLAS_ONE_DATA_SIZE_HEIGHT;
+		float pos_y = 0;
+
+		// 移動行列を作成
+		// 左上座標は元座標とスケーリング値から計算可能。1.0f - xScaleしているのは目減りした量を計算するため。
+		const GLfloat vertexLeft = 0.5f + (1.0f - xScale) * 0.5f;
+		const GLfloat vertexTop = 0.5f + (1.0f - (yScale * surfaceAspect)) * 0.5f;
+		const GLfloat moveX = (pos_x) / (GLfloat)scWidth * 2.0f;
+		const GLfloat moveY = -((pos_y) / (GLfloat)scHeight * 2.0f);
+
+		// 左上に移動し、さらに右下方へオフセットさせる
+		mat4 translate = mat4_translate(-vertexLeft + moveX, vertexTop + moveY, 0);
+		const mat4 rotate = mat4_rotate(vec3_create(1, 0, 0), 180);
+
+		mat4 matrix = mat4_identity();
+		matrix = mat4_multiply(translate, aspect);
+		matrix = mat4_multiply(matrix, rotate);
+		matrix = mat4_multiply(matrix, scale);
+
+		glUniformMatrix4fv(shader.unif_matrix, 1, GL_FALSE, (GLfloat*)matrix.m);
 		glVertexAttribPointer(shader.positionLocation, 2, GL_FLOAT, false, 0, vertex_position);
-		assert(glGetError() == GL_NO_ERROR);
 		glVertexAttribPointer(shader.uvLocation, 2, GL_FLOAT, false, 0, vertex_uv);
-		assert(glGetError() == GL_NO_ERROR);
 		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
-		assert(glGetError() == GL_NO_ERROR);
 
 		glBindTexture(GL_TEXTURE_2D, 0);
 		glDeleteTextures(1, &texture);
@@ -194,8 +229,9 @@ void FontManager::CrateShader()
     attribute vec3 position;
     attribute vec2 uv;
     varying vec2 vuv;
+    uniform mat4 unif_matrix;
     void main(void){
-        gl_Position = vec4(position, 1.0);
+        gl_Position = unif_matrix * vec4(position, 1.0);
         vuv = uv;
     }
     )#";
@@ -208,7 +244,8 @@ void FontManager::CrateShader()
     varying vec2 vuv;
     uniform sampler2D texture;
     void main(void){
-        gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0) * texture2D(texture, vuv).r;
+        //gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0) * texture2D(texture, vuv).r;
+		gl_FragColor = texture2D(texture, vuv);
     }
     )#";
 	const char* fs = fragmentShader.c_str();
@@ -234,3 +271,4 @@ bool FontManager::isHalfSpaceCharacter(wchar_t _c) {
 	}
 	return false;
 }
+
