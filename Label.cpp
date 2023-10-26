@@ -215,6 +215,7 @@ void Label::Update() {
 //#define FONT_POS_CONV_Y(h)	(((float)(h) / canvas.size.y) * 2.0f - 1.0f)
 #define FONT_POS_CONV_X(w)	(((float)(w) / canvas.size.x) * 2.0f - 1.0f)
 #define FONT_POS_CONV_Y(h)	(((float)(h) / canvas.size.y) * 2.0f - 1.0f)
+#if 0
 void Label::Draw(GLuint programId) {
 	glUseProgram(programId);
 
@@ -387,4 +388,147 @@ void Label::Draw(GLuint programId) {
 		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	}
 }
+#else
+void Label::Draw(GLuint programId) {
+	glUseProgram(programId);
 
+
+	//float x = 0.0f;
+	//float y = 0.0f;
+
+	for (int i = 0; i < canvas.labelCharacters.size(); i++) {
+		LabelCharacter* LabelCharacter = canvas.labelCharacters[i];
+		Character* character = FontManager::GetInstance()->GetCharacterData(LabelCharacter->character);
+		glm::vec2 pos = LabelCharacter->position;
+		//GLfloat xpos = pos.x;
+		//GLfloat ypos = pos.y;
+		//GLfloat w = character->size.x * fontScale;
+		//GLfloat h = character->size.y * fontScale;
+
+		float vertex_position[] = {
+			0.5f, 0.5f,
+			-0.5f, 0.5f,
+			-0.5f, -0.5f,
+			0.5f, -0.5f
+			//FONT_POS_CONV_X(xpos + w), FONT_POS_CONV_Y(ypos + h),
+			//FONT_POS_CONV_X(xpos), FONT_POS_CONV_Y(ypos + h),
+			//FONT_POS_CONV_X(xpos), FONT_POS_CONV_Y(ypos),
+			//FONT_POS_CONV_X(xpos + w), FONT_POS_CONV_Y(ypos)
+		};
+
+		/*
+		const GLfloat vertex_uv[] = {
+			character->uvRect.z, character->uvRect.y,
+			character->uvRect.x, character->uvRect.y,
+			character->uvRect.x, character->uvRect.w,
+			character->uvRect.z, character->uvRect.w,
+		};
+		*/
+		const GLfloat vertex_uv[] = {
+			1, 0,
+			0, 0,
+			0, 1,
+			1, 1,
+		};
+
+		// 何番目のattribute変数か
+		int positionLocation = glGetAttribLocation(programId, "position");
+		int uvLocation = glGetAttribLocation(programId, "uv");
+		int textureLocation = glGetUniformLocation(programId, "texMap");
+		int unif_matrix = glGetUniformLocation(programId, "unif_matrix");
+		int unif_uvmatrix = glGetUniformLocation(programId, "unif_uvmatrix");
+
+		// attribute属性を有効にする
+		glEnableVertexAttribArray(positionLocation);
+		glEnableVertexAttribArray(uvLocation);
+
+		const float scWidth = 1280;
+		const float scHeight = 720;
+		// アスペクト補正用行列
+		const GLfloat surfaceAspect = (GLfloat)scWidth / (GLfloat)scHeight;
+		const mat4 aspect = mat4_scale(1, surfaceAspect, 1);
+
+		//const GLfloat xScale = (GLfloat)character->size.x / (GLfloat)scWidth * 2.0f;
+		//const GLfloat yScale = (GLfloat)character->size.y / (GLfloat)scHeight * 2.0f;
+		const GLfloat xScale = (GLfloat)40 / (GLfloat)scWidth * 2.0f;
+		const GLfloat yScale = (GLfloat)40 / (GLfloat)scHeight * 2.0f;
+
+		const mat4 scale = mat4_scale(xScale, yScale, 0);
+		//const mat4 scale = mat4_scale(1.0, 1.0, 1.0);
+
+		//float pos_x = pos.x + character->bearing.x;
+		float pos_x = 0;
+		//float pos_y = pos.y - (character->size.y - character->bearing.y);
+		static float ss_ = 2.0f;
+		//ss_ += 0.001f;
+		//float pos_y = 300 - character->size.y*2.0f - (character->bearing.y)* ss_;
+		//float pos_y = pos.y - (character->bearing.y) * ss_;
+		float pos_y = 0;
+
+		// 移動行列を作成
+		// 左上座標は元座標とスケーリング値から計算可能。1.0f - xScaleしているのは目減りした量を計算するため。
+		const GLfloat vertexLeft = 0.5f + (1.0f - xScale) * 0.5f;
+		const GLfloat vertexTop = 0.5f + (1.0f - (yScale * surfaceAspect)) * 0.5f;
+		const GLfloat moveX = (pos_x) / (GLfloat)scWidth * 2.0f;
+		const GLfloat moveY = -((pos_y) / (GLfloat)scHeight * 2.0f);
+
+		// 左上に移動し、さらに右下方へオフセットさせる
+		mat4 translate = mat4_translate(-vertexLeft + moveX, vertexTop + moveY, 0);
+		//mat4 translate = mat4_translate(0, 0, 0);
+		const mat4 rotate = mat4_rotate(vec3_create(1, 0, 0), 0);
+
+		mat4 matrix = mat4_identity();
+		matrix = mat4_multiply(translate, aspect);
+		matrix = mat4_multiply(matrix, rotate);
+		matrix = mat4_multiply(matrix, scale);
+
+		/*
+		const GLfloat ancMoveX2 = (GLfloat)(spriteWidth) / (GLfloat)_size.width * _anchorpoint.x;
+		const GLfloat ancMoveY2 = (GLfloat)(spriteHeight) / (GLfloat)_size.width * _anchorpoint.y;
+		const mat4 rotTranslate0 = mat4_translate(ancMoveX2, -ancMoveY2, 0);
+		_mat = mat4_multiply(_mat, rotTranslate0);
+		_mat = mat4_multiply(_mat, rotate);
+		const mat4 rotTranslate1 = mat4_translate(-ancMoveX2, ancMoveY2, 0);
+		_mat = mat4_multiply(_mat, rotTranslate1);
+
+		_mat = mat4_multiply(_mat, scale);
+		*/
+
+
+		// uniform属性を設定する
+		glUniform1i(textureLocation, 0);
+		glUniformMatrix4fv(unif_matrix, 1, GL_FALSE, (GLfloat*)matrix.m);
+
+		{
+			GLfloat x = ((i % FONT_ATLAS_LINE_LENGTH) * FONT_ATLAS_ONE_DATA_SIZE_WIDTH);
+			GLfloat y = FONT_ATLAS_TEXTURE_SIZE_HEIGHT - character->size.y;
+			const GLfloat _xScale = (GLfloat)character->size.x / (GLfloat)FONT_ATLAS_TEXTURE_SIZE_WIDTH;
+			const GLfloat _yScale = (GLfloat)character->size.y / (GLfloat)FONT_ATLAS_TEXTURE_SIZE_HEIGHT;
+
+			const mat4 _scale = mat4_scale(_xScale, _yScale, 0);
+			//const mat4 _scale = mat4_scale(1.0, 1.0, 1.0);
+
+			// 移動を行う
+			const GLfloat _xMove = (GLfloat)x / (GLfloat)FONT_ATLAS_TEXTURE_SIZE_WIDTH;
+			const GLfloat _yMove = (GLfloat)y / (GLfloat)FONT_ATLAS_TEXTURE_SIZE_HEIGHT;
+			const mat4 _translate = mat4_translate(_xMove, _yMove, 0);
+			//const mat4 _translate = mat4_translate(0, 0, 0);
+
+			mat4 _matrix = mat4_multiply(_translate, _scale);
+			//mat4 _matrix = mat4_identity();
+			glUniformMatrix4fv(unif_uvmatrix, 1, GL_FALSE, (GLfloat*)_matrix.m);
+		}
+
+		// attribute属性を登録
+		glVertexAttribPointer(positionLocation, 2, GL_FLOAT, false, 0, vertex_position);
+		glVertexAttribPointer(uvLocation, 2, GL_FLOAT, false, 0, vertex_uv);
+
+
+		// モデルの描画
+		glBindTexture(GL_TEXTURE_2D, FontManager::GetInstance()->GetFontTextureId());
+		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+		break;
+	}
+}
+#endif

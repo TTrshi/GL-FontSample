@@ -148,11 +148,6 @@ bool FontManager::CreateCharacter(wchar_t _c) {
 		);
 		assert(glGetError() == GL_NO_ERROR);
 
-		float x_0 = (x / FONT_ATLAS_TEXTURE_SIZE_WIDTH) * 2.0f - 1.0f;
-		float x_1 = x_0 + FONT_ATLAS_ONE_DATA_UV_SIZE_WIDTH(freetype_face->glyph->bitmap.width);
-		float y_0 = (y / FONT_ATLAS_TEXTURE_SIZE_HEIGHT) * 2.0f - 1.0f;
-		float y_1 = y_0 + FONT_ATLAS_ONE_DATA_UV_SIZE_HEIGHT(freetype_face->glyph->bitmap.rows);
-
 		float vertex_position[] = {
 			0.5f, 0.5f,
 			-0.5f, 0.5f,
