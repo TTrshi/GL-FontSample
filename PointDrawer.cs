@@ -252,8 +252,8 @@ namespace ClipperTest1
                 {
                     v2.Add(new Vector2(_vertices[i].point.x, _vertices[i].point.y));
                 }
-                //PathsD simpleShapes = Union(v2);
-                ClipperLib_Paths simpleShapes = SimplifyPolygon(v2);
+                PathsD simpleShapes = Union(v2);
+                //ClipperLib_Paths simpleShapes = SimplifyPolygon(v2);
 
                 for (int i = 0; i < simpleShapes.Count; i++)
                 {
@@ -267,10 +267,10 @@ namespace ClipperTest1
                     List<Vector3> v = new List<Vector3>();
                     for (int k = 0; k < simpleShapes[i].Count; k++)
                     {
-                        //PathD pathList = simpleShapes[i];
-                        ClipperLib_Path pathList = simpleShapes[i];
-                        //v.Add(new Vector3((float)pathList[k].x, (float)pathList[k].y, 0));
-                        v.Add(new Vector3((float)pathList[k].X / 100.0f, (float)pathList[k].Y / 100.0f, 0));
+                        PathD pathList = simpleShapes[i];
+                        //ClipperLib_Path pathList = simpleShapes[i];
+                        v.Add(new Vector3((float)pathList[k].x, (float)pathList[k].y, 0));
+                        //v.Add(new Vector3((float)pathList[k].X / 100.0f, (float)pathList[k].Y / 100.0f, 0));
                         CreateDot(v[v.Count - 1]);
                     }
                     lineRenderer.positionCount = v.Count;
@@ -1262,6 +1262,47 @@ namespace ClipperTest1
 
             PathsD solution;
             solution = Clipper2Lib.Clipper.Union(pp, FillRule.NonZero);
+            /*
+            Clipper2Lib.ClipperOffset co = new();
+            Paths64 res2 = new Paths64();
+            for (int j = 0; j < solution.Count; j++)
+            {
+                Path64 res2_ = new Path64();
+                List<Vector3> v = new List<Vector3>();
+                for (int i = 0; i < solution[j].Count; i++)
+                {
+                    PathD pathList = solution[j];
+                    res2_.Add(new Point64(pathList[i].x*10, pathList[i].y*10));
+                }
+                res2.Add(res2_);
+                co.AddPath(res2_, Clipper2Lib.JoinType.Square, Clipper2Lib.EndType.Butt);
+            }
+            //solution = Clipper.Union(solution, FillRule.NonZero);
+
+            Paths64 res3 = new Paths64();
+            co.Execute(0, res3);
+            //pp.AddRange(p);
+
+            solution = Clipper2Lib.Clipper.InflatePaths(solution, 0, Clipper2Lib.JoinType.Miter, Clipper2Lib.EndType.Polygon);
+            */
+
+            return solution;
+        }
+
+        public static PathsD CheckMin(List<Vector2> vertices)
+        {
+            int cnt = vertices.Count;
+            PathD res = new PathD(cnt);
+            for (int i = 0; i < cnt; i++)
+            {
+                res.Add(new PointD(vertices[i].x, vertices[i].y));
+            }
+
+            res = Clipper2Lib.Clipper.TrimCollinear(res, 7);
+            PathsD pp = new() { res };
+
+            PathsD solution;
+            solution = Clipper2Lib.Clipper.Union(pp, FillRule.NonZero);
 
             for (int j = 0; j < solution.Count; j++)
             {
@@ -1271,7 +1312,8 @@ namespace ClipperTest1
                     PathD pathList = solution[j];
                 }
             }
-            //solution = Clipper.Union(solution, FillRule.NonZero);
+
+            solution = Clipper2Lib.Clipper.InflatePaths(solution, -1.0, Clipper2Lib.JoinType.Miter, Clipper2Lib.EndType.Polygon);
 
             return solution;
         }
