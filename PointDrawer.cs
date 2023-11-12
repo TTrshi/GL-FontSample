@@ -5,14 +5,16 @@ using System.IO;
 using System.Text;
 using System;
 using System.Reflection;
+using System.Linq;
 
-using ClipperLib;
+//using ClipperLib;
 using Clipper2Lib;
 namespace ClipperTest1
 {
+    /*
     using ClipperLib_Path = List<IntPoint>;
     using ClipperLib_Paths = List<List<IntPoint>>;
-
+    */
 
 
     public class PointDrawer : MonoBehaviour
@@ -40,8 +42,8 @@ namespace ClipperTest1
         private List<Vector3> _samplingVertices = new List<Vector3>();
 
         private List<GameObject> _dotList = new List<GameObject>();
-        //private List<Vector3> _vertices = new List<Vector3>();
-        private List<ElementVector2> _vertices = new List<ElementVector2>();
+        private List<Vector3> _vertices = new List<Vector3>();
+        //private List<ElementVector2> _vertices = new List<ElementVector2>();
         private List<GameObject> _meshList = new List<GameObject>();
 
         private Vector3 prevPosition = new Vector3(0, 0, 0);
@@ -66,6 +68,8 @@ namespace ClipperTest1
 
         GameObject gLineObject;
         LineRenderer gLineRenderer;
+        GameObject gLineObject_2;
+        LineRenderer gLineRenderer_2;
 
         public class ElementVector2
         {
@@ -99,6 +103,13 @@ namespace ClipperTest1
             gLineRenderer.useWorldSpace = false;
             gLineRenderer.startWidth = 0.1f;
             gLineRenderer.endWidth = 0.1f;
+
+            gLineObject_2 = new GameObject();
+            gLineObject_2.transform.position = new Vector3(0, 0, -0.2f);
+            gLineRenderer_2 = gLineObject_2.AddComponent<LineRenderer>();
+            gLineRenderer_2.useWorldSpace = false;
+            gLineRenderer_2.startWidth = 0.1f;
+            gLineRenderer_2.endWidth = 0.1f;
 
             /*
             List<Vector3> v = new List<Vector3>();
@@ -200,6 +211,7 @@ namespace ClipperTest1
                 gLineRenderer.loop = true;
                 */
 
+                /*
                 List<Vector2> v = new List<Vector2>();
                 for (int i = 0; i < _vertices.Count; i++)
                 {
@@ -214,6 +226,7 @@ namespace ClipperTest1
                 {
                     Debug.Log("targetが内部に存在しない.");
                 }
+                */
 
                 //Debug.Log("gLineRenderer: " + v.Count);
                 //_vertices.Clear();
@@ -237,7 +250,26 @@ namespace ClipperTest1
 
             if (Input.GetKeyDown(KeyCode.Q))
             {
-                Clear();
+                //Clear();
+                
+                ClearDot();
+                List<Vector3> vertices = FixVertex(_vertices);
+
+                GameObject lineObject = new GameObject();
+                lineObject.transform.position = new Vector3(0, 0, -0.2f);
+                LineRenderer lineRenderer = lineObject.AddComponent<LineRenderer>();
+                lineRenderer.useWorldSpace = false;
+                lineRenderer.startWidth = 0.1f;
+                lineRenderer.endWidth = 0.1f;
+                lineRenderer.positionCount = vertices.Count;
+                lineRenderer.SetPositions(vertices.ToArray());
+                lineRenderer.loop = true;
+                /*
+                GameObject go = _drawMesh.CreateMesh(vertices);
+                go.GetComponent<MeshRenderer>().material = _material;
+                go.transform.position += go.transform.forward * -0.001f;
+                _meshList.Add(go);
+                */
             }
             if (Input.GetKeyDown(KeyCode.A))
             {
@@ -246,15 +278,37 @@ namespace ClipperTest1
                 //test2();
 
 
+
                 ClearDot();
+                _vertices.Add(new Vector3(_vertices[0].x, _vertices[0].y, _vertices[0].z));
+                //-----------------
+                // Stopwatchクラス生成
+                var sw = new System.Diagnostics.Stopwatch();
+                // 計測開始
+                sw.Start();
+
                 List<Vector2> v2 = new List<Vector2>();
                 for (int i = 0; i < _vertices.Count; i++)
                 {
-                    v2.Add(new Vector2(_vertices[i].point.x, _vertices[i].point.y));
+                    v2.Add(new Vector2(_vertices[i].x, _vertices[i].y));
                 }
                 PathsD simpleShapes = Union(v2);
-                //ClipperLib_Paths simpleShapes = SimplifyPolygon(v2);
 
+                double areaMax = 0.0;
+                int maxIndex = 0;
+                for (int i = 0; i < simpleShapes.Count; i++)
+                {
+                    double area = Clipper2Lib.Clipper.Area(simpleShapes[i]);
+                    if (areaMax < area)
+                    {
+                        areaMax = area;
+                        maxIndex = i;
+                    }
+                }
+
+                //PathsD simpleShapes = GetOutline(v2);
+                //ClipperLib_Paths simpleShapes = SimplifyPolygon(v2);
+                List<Vector3> vertices = new List<Vector3>();
                 for (int i = 0; i < simpleShapes.Count; i++)
                 {
                     GameObject lineObject = new GameObject();
@@ -272,11 +326,30 @@ namespace ClipperTest1
                         v.Add(new Vector3((float)pathList[k].x, (float)pathList[k].y, 0));
                         //v.Add(new Vector3((float)pathList[k].X / 100.0f, (float)pathList[k].Y / 100.0f, 0));
                         CreateDot(v[v.Count - 1]);
+                        if(maxIndex == i)
+                            vertices.Add(new Vector3((float)pathList[k].x, (float)pathList[k].y, 0));
                     }
                     lineRenderer.positionCount = v.Count;
                     lineRenderer.SetPositions(v.ToArray());
                     lineRenderer.loop = true;
                 }
+                
+                GameObject go = _drawMesh.CreateMesh(vertices);
+                go.GetComponent<MeshRenderer>().material = _material;
+                go.transform.position += go.transform.forward * -0.001f;
+                _meshList.Add(go);
+                
+
+
+                // 計測停止
+                sw.Stop();
+
+                // 結果表示
+                //Debug.Log("■処理Aにかかった時間");
+                TimeSpan ts = sw.Elapsed;
+                //Debug.Log($"　{ts}");
+                //Debug.Log($"　{ts.Hours}時間 {ts.Minutes}分 {ts.Seconds}秒 {ts.Milliseconds}ミリ秒");
+                //Debug.Log($"　{sw.ElapsedMilliseconds}ミリ秒");
             }
         }
 
@@ -308,22 +381,39 @@ namespace ClipperTest1
                     AddVertex(hit.point);
                     _samplingVertices.Clear();
                     /*
-                    testFixVector2(new Vector2(hit.point.x, hit.point.y));
+                    List<Vector3> v3 = new List<Vector3>();
+                    for (int i = 0; i < _vertices.Count; i++)
+                    {
+                        v3.Add(new Vector3(_vertices[i].point.x, _vertices[i].point.y, -0.2f));
+                    }
+                    */
+                    gLineRenderer_2.positionCount = _vertices.Count;
+                    gLineRenderer_2.SetPositions(_vertices.ToArray());
+                    gLineRenderer_2.loop = true;
+                    
+                    
+                    /*
+                    testFixVector3(hit.point);
                     //vertices.Add(vertices[0]);
                     ClearDot();
                     //testFixVector();
                     List<Vector3> v = new List<Vector3>();
                     for (int i = 0; i < _vertices.Count; i++)
                     {
-                        v.Add(new Vector3(_vertices[i].point.x, _vertices[i].point.y, 0));
-                        CreateDot(v[i]);
+                        CreateDot(_vertices[i]);
                     }
+     
+                    gLineRenderer_2.positionCount = _vertices.Count;
+                    gLineRenderer_2.SetPositions(_vertices.ToArray());
+                    gLineRenderer_2.loop = true;
                     */
+                    
+
                     // 点の数を指定する
                     //gLineRenderer.positionCount = v.Count;
                     // 線を引く場所を指定する
                     //gLineRenderer.SetPositions(v.ToArray());
-                    
+
 
                     //Debug.Log("gLineRenderer: " + v.Count);
                     //_vertices.Clear();
@@ -345,7 +435,7 @@ namespace ClipperTest1
         {
             CreateDot(point);
             //DrawTest(point);
-            _vertices.Add(new ElementVector2(point, -1));
+            _vertices.Add(point);
             _samplingVertices.Clear();
         }
 
@@ -570,12 +660,59 @@ namespace ClipperTest1
             return cross1 * cross2 < 0 && cross3 * cross4 < 0;
         }
 
+        // 点が線分上に存在するかどうかを判定する関数
+        bool IsPointOnLine(Vector2 point, Vector2 lineStart, Vector2 lineEnd)
+        {
+            float epsilon = 0.0001f; // 誤差の許容範囲
+
+            // 線分の長さを計算
+            float lineLength = Vector2.Distance(lineStart, lineEnd);
+
+            // 線分の方向ベクトルを正規化
+            Vector2 lineDirection = (lineEnd - lineStart).normalized;
+
+            // 線分上の点までの距離を計算
+            float distanceFromStart = Vector2.Dot(point - lineStart, lineDirection);
+
+            // 線分上の点までの距離が線分の長さの範囲内にあるかどうかを判定
+            return distanceFromStart >= -epsilon && distanceFromStart <= lineLength + epsilon;
+        }
+
+        bool intercectPoint(Vector2 point, Vector2 lineStart, Vector2 lineEnd)
+        {
+            // 線分の方向と長さを表すベクトルをa
+            Vector2 a = lineEnd - lineStart;
+
+            // 線分の始点から点に向かうベクトルをbとする
+            Vector2 b = point - lineStart;
+
+            // ベクトルaの長さをal、ベクトルbの長さをblとする
+            float al = a.magnitude;
+            float bl = b.magnitude;
+
+            // a と b の長さを掛け合わせたものを ab
+            float ab = al * bl;
+
+            // a と b の内積を dot
+            float dot = Vector2.Dot(a, b);
+
+            // p が線分上にあるとしたら、a と b は同じ向きで平行なはずなので
+            // dot = ab になっているはず、なっていなければ当たっていない
+            if (dot != ab)
+            {
+                return false;
+            }
+
+            // bの長さが a の長さより短ければ当たっているといえる
+            return (al > bl);
+        }
+
         void testFixVector()
         {
             List<Vector2> vertices = new List<Vector2>();
             for (int i = 0; i < _vertices.Count; i++)
             {
-                vertices.Add(new Vector2(_vertices[i].point.x, _vertices[i].point.y));
+                //vertices.Add(new Vector2(_vertices[i].point.x, _vertices[i].point.y));
             }
             //Debug.Log("vertices.Count : " + vertices.Count);
 
@@ -727,7 +864,7 @@ namespace ClipperTest1
             for (int i = 0; i < result_vertices.Count; i++)
             {
                 //return_vertices.Add(new Vector3(result_vertices[i].point.x, result_vertices[i].point.y, 0));
-                _vertices.Add(new ElementVector2(result_vertices[i].point, result_vertices[i].intersect_index));
+                //_vertices.Add(new ElementVector2(result_vertices[i].point, result_vertices[i].intersect_index));
 
             }
 
@@ -832,12 +969,51 @@ namespace ClipperTest1
 
             return sum > 0;
         }
+        bool IsClockwise(ElementVector2[] polygon)
+        {
+            int n = polygon.Length;
+            if (n < 3)
+            {
+                // 多角形が3つ未満の頂点を持つ場合、判定ができません
+                throw new ArgumentException("多角形は少なくとも3つの頂点を持つ必要があります");
+            }
+
+            double sum = 0;
+
+            for (int i = 0; i < n; i++)
+            {
+                int next = (i + 1) % n;
+                sum += (polygon[next].point.x - polygon[i].point.x) * (polygon[next].point.y + polygon[i].point.y);
+            }
+
+            return sum > 0;
+        }
+        bool IsClockwise(Vertex2[] polygon)
+        {
+            int n = polygon.Length;
+            if (n < 3)
+            {
+                // 多角形が3つ未満の頂点を持つ場合、判定ができません
+                throw new ArgumentException("多角形は少なくとも3つの頂点を持つ必要があります");
+            }
+
+            double sum = 0;
+
+            for (int i = 0; i < n; i++)
+            {
+                int next = (i + 1) % n;
+                sum += (polygon[next].x - polygon[i].x) * (polygon[next].y + polygon[i].y);
+            }
+
+            return sum > 0;
+        }
 
         double cross(Vector2 cur, Vector2 next)
         {
             return (next.x - cur.x) * (next.y + cur.y);
         }
 
+#if false
         //新
         void testFixVector2(Vector2 _addVertex)
         {
@@ -992,6 +1168,232 @@ namespace ClipperTest1
             */
 
             //return return_vertices;
+        }
+#endif
+#if false
+        void testFixVector3(Vector3 _addVertex)
+        {
+            Vector3 _addVertexPrev = _vertices[_vertices.Count - 1];
+
+            Vector3 main_cur_vertex = Vector3.zero;
+            Vector3 main_prev_vertex = Vector3.zero;
+            for (int i = 0; i < _vertices.Count; i++)
+            {
+                var main_vertex = _vertices[i];
+                main_prev_vertex = main_cur_vertex;
+                main_cur_vertex = main_vertex;
+                if (i == 0)
+                {
+                    continue;
+                }
+
+                if (DoIntersect(_addVertexPrev, _addVertex, main_prev_vertex, main_cur_vertex))
+                {
+                    Vector2 intersection = FindIntersection(_addVertexPrev, _addVertex, main_prev_vertex, main_cur_vertex);
+                    Vector3 subVertex = new Vector3(intersection.x, intersection.y, _addVertex.z);
+                    Vector3 mainVertex = new Vector3(intersection.x, intersection.y, _addVertex.z);
+
+                    //sub
+                    _vertices.Insert(i, subVertex);
+
+                    //reverse
+                    List<Vector3> reverse_vertices = new List<Vector3>();
+                    while (true)
+                    {
+                        if (i == _vertices.Count - 1) { break; }
+                        int index = _vertices.Count - 1;
+                        reverse_vertices.Add(_vertices[index]);
+                        _vertices.RemoveAt(index);
+                    }
+                    for (int k = 0; k < reverse_vertices.Count; k++)
+                    {
+                        _vertices.Add(reverse_vertices[k]);
+                    }
+                    //main
+                    _vertices.Add(mainVertex);
+
+                    break;
+                }
+
+            }
+            _vertices.Add(_addVertex);
+        }
+#endif
+        public class Vertex2
+        {
+            public float x;
+            public float y;
+            public int intersect_index;
+
+            public Vertex2(Vector2 _point, int _intersect_index = -1)
+            {
+                x = _point.x;
+                y = _point.y;
+                intersect_index = _intersect_index;
+            }
+        }
+        public class PolyLine
+        {
+            public List<Vector2> vertices = new List<Vector2>();
+            public int intersect_index;
+            public bool reverse;
+            public bool use;
+
+            public PolyLine()
+            {
+                intersect_index = -1;
+                reverse = false;
+                use = true;
+            }
+        }
+
+        void getPolyLine(ref List<Vertex2> vertices, ref List<PolyLine> polylines)
+        {
+            polylines.Add(new PolyLine());
+
+            for (int i = 0; i < vertices.Count; i++)
+            {
+                if(vertices[i].intersect_index >= 0)
+                {
+                    //polylines[polylines.Count - 1].vertices.Add(vertices[i].point);
+                    polylines[polylines.Count - 1].intersect_index = vertices[i].intersect_index;
+                    polylines.Add(new PolyLine());
+                    //polylines[polylines.Count - 1].vertices.Add(vertices[i].point);
+                }
+                else
+                {
+                    
+                }
+                polylines[polylines.Count - 1].vertices.Add(new Vector2(vertices[i].x, vertices[i].y));
+            }
+        }
+
+        void addVertexFunc(Vector2 _addVertex, ref List<Vertex2> vertices, ref int intersectIndex)
+        {
+            if(vertices.Count == 0)
+            {
+                vertices.Add(new Vertex2(_addVertex, -1));
+                return;
+            }
+            Vector2 _addVertexPrev = new Vector2(vertices[vertices.Count - 1].x, vertices[vertices.Count - 1].y);
+            Vector2 main_cur_vertex = Vector3.zero;
+            Vector2 main_prev_vertex = Vector3.zero;
+            for (int i = 0; i < vertices.Count; i++)
+            {
+                var main_vertex = new Vector2(vertices[i].x, vertices[i].y);
+                main_prev_vertex = main_cur_vertex;
+                main_cur_vertex = main_vertex;
+                if (i == 0)
+                {
+                    continue;
+                }
+
+                /*
+                if(IsPointOnLine(_addVertex, main_prev_vertex, main_cur_vertex))
+                {
+                    Debug.Log("線分上に追加点が存在します");
+                }
+                */
+                //intercectPoint(_addVertex, main_prev_vertex, main_cur_vertex) || 
+                if (DoIntersect(_addVertexPrev, _addVertex, main_prev_vertex, main_cur_vertex))
+                {
+                    Vector2 intersection = FindIntersection(_addVertexPrev, _addVertex, main_prev_vertex, main_cur_vertex);
+                    Vertex2 subVertex = new Vertex2(intersection, intersectIndex);
+                    Vertex2 mainVertex = new Vertex2(intersection, intersectIndex);
+                    intersectIndex++;
+
+                    CreateDot(new Vector3(mainVertex.x, mainVertex.y , 0));
+
+                    //sub
+                    vertices.Insert(i, subVertex);
+
+                    //reverse
+                    List<Vertex2> reverse_vertices = new List<Vertex2>();
+                    while (true)
+                    {
+                        if (i == vertices.Count - 1) { break; }
+                        int index = vertices.Count - 1;
+                        reverse_vertices.Add(vertices[index]);
+                        vertices.RemoveAt(index);
+                    }
+                    for (int k = 0; k < reverse_vertices.Count; k++)
+                    {
+                        vertices.Add(reverse_vertices[k]);
+                    }
+                    //main
+                    vertices.Add(mainVertex);
+                    break;
+                }
+
+            }
+            vertices.Add(new Vertex2(_addVertex, -1));
+        }
+
+        List<Vector3> FixVertex(List<Vector3> vertices)
+        {
+            List<Vector3> result_vertices = new List<Vector3>();
+            List<Vertex2> ele_vertices = new List<Vertex2>();
+            int intersectIndex = 0;
+            for (int i = 0; i < vertices.Count; i++)
+            {
+                addVertexFunc(new Vector2(vertices[i].x, vertices[i].y), ref ele_vertices, ref intersectIndex);
+            }
+
+            List<PolyLine> polylines = new List<PolyLine>();
+            getPolyLine(ref ele_vertices, ref polylines);
+            float verticesZ = vertices[0].z;
+
+            Debug.Log("交差数：" + intersectIndex + ", ポリライン数：" + polylines.Count);
+
+            bool isClockwise = IsClockwise(ele_vertices.ToArray());
+            for (int i = 0; i < intersectIndex; i++)
+            {
+                int begin_index = -1;
+                for (int k = 0; k < polylines.Count; k++)
+                {
+                    if (polylines[k].intersect_index == i)
+                    {
+                        if (begin_index < 0) { begin_index = k; }
+                        else
+                        {
+                            List<Vector2> tmp_vertices = new List<Vector2>();
+                            for (int n = begin_index + 1; n < k + 1; n++)
+                            {
+                                for (int m = 0; m < polylines[n].vertices.Count; m++)
+                                {
+                                    tmp_vertices.Add(polylines[n].vertices[m]);
+                                }
+                            }
+                            bool tmpIsClockwise = IsClockwise(tmp_vertices.ToArray());
+                            if(tmpIsClockwise != isClockwise)
+                            {
+                                for (int n = begin_index + 1; n < k + 1; n++)
+                                {
+                                    polylines[n].use = false;
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+            for (int i = 0; i < polylines.Count; i++)
+            {
+                if (!polylines[i].use) continue;
+                for (int k = 0; k < polylines[i].vertices.Count; k++)
+                {
+                    result_vertices.Add(new Vector3(polylines[i].vertices[k].x, polylines[i].vertices[k].y, verticesZ));
+                }
+            }
+
+            /*
+            for (int i = 0; i < result_vertices.Count; i++)
+            {
+                CreateDot(result_vertices[i]);
+            }
+            */
+
+            return result_vertices;
         }
 
         //=============================================================
@@ -1248,6 +1650,111 @@ namespace ClipperTest1
         }
 #endif
 
+        public static PathsD GetOutline(List<Vector2> vertices)
+        {
+            int cnt = vertices.Count;
+            PathD res = new PathD(cnt);
+            for (int i = 0; i < cnt; i++)
+            {
+                res.Add(new PointD(vertices[i].x, vertices[i].y));
+            }
+
+            res = Clipper2Lib.Clipper.TrimCollinear(res, 2);
+            PathsD pp = new() { res };
+
+
+            int leftIndex = 0;
+            int topIndex = 0;
+            int rightIndex = 0;
+            int bottomIndex = 0;
+            for (int i = 1; i < cnt; i++)
+            {
+                if (vertices[i].x < vertices[leftIndex].x) { leftIndex = i; }
+                if (vertices[i].y < vertices[bottomIndex].y) { bottomIndex = i; }
+                if (vertices[rightIndex].x < vertices[i].x) { rightIndex = i; }
+                if (vertices[topIndex].y < vertices[i].y) { topIndex = i; }
+            }
+
+            PathD p_ = Clipper2Lib.Clipper.MakePath(new double[] {
+                vertices[leftIndex].x, vertices[bottomIndex].y,
+                vertices[leftIndex].x, vertices[topIndex].y,
+                vertices[rightIndex].x, vertices[topIndex].y,
+                vertices[rightIndex].x, vertices[bottomIndex].y,
+            });
+
+            //PathD p_ = Clipper2Lib.Clipper.MakePath(new double[] { -5, -5, -5, 5, 5, 5, 5, -5 });
+            PathsD pp_ = new() { p_ };
+
+            PathsD solution;
+
+            solution = Clipper2Lib.Clipper.Intersect(pp, new PathsD { p_ }, FillRule.NonZero);
+
+
+            return solution;
+        }
+
+        public static PathsD GetOutline2(List<Vector3> vertices)
+        {
+            int cnt = vertices.Count;
+            PathD res = new PathD(cnt);
+            for (int i = 0; i < cnt; i++)
+            {
+                res.Add(new PointD(vertices[i].x, vertices[i].y));
+            }
+
+            res = Clipper2Lib.Clipper.TrimCollinear(res, 2);
+            PathsD pp = new() { res };
+
+
+            int leftIndex = 0;
+            int topIndex = 0;
+            int rightIndex = 0;
+            int bottomIndex = 0;
+            for (int i = 1; i < cnt; i++)
+            {
+                if (vertices[i].x < vertices[leftIndex].x) { leftIndex = i; }
+                if (vertices[i].y < vertices[bottomIndex].y) { bottomIndex = i; }
+                if (vertices[rightIndex].x < vertices[i].x) { rightIndex = i; }
+                if (vertices[topIndex].y < vertices[i].y) { topIndex = i; }
+            }
+            
+            PathD p_ = Clipper2Lib.Clipper.MakePath(new double[] {
+                vertices[leftIndex].x, vertices[bottomIndex].y,
+                vertices[leftIndex].x, vertices[topIndex].y,
+                vertices[rightIndex].x, vertices[topIndex].y,
+                vertices[rightIndex].x, vertices[bottomIndex].y,
+            });
+            
+            //PathD p_ = Clipper2Lib.Clipper.MakePath(new double[] { -5, -5, -5, 5, 5, 5, 5, -5 });
+            PathsD pp_ = new() { p_ };
+
+            PathsD solution;
+
+            solution = Clipper2Lib.Clipper.Intersect(pp, new PathsD { p_ }, FillRule.NonZero);
+
+
+            return solution;
+        }
+
+        /*
+        public static PathsD PolygonMesh(PathsD _paths)
+        {
+
+            for (int j = 0; j < _paths.Count; j++)
+            {
+                Path64 res2_ = new Path64();
+                List<Vector3> v = new List<Vector3>();
+                for (int i = 0; i < _paths[j].Count; i++)
+                {
+                    PathD pathList = _paths[j];
+                    res2_.Add(new Point64(pathList[i].x * 10, pathList[i].y * 10));
+                }
+                res2.Add(res2_);
+                co.AddPath(res2_, Clipper2Lib.JoinType.Square, Clipper2Lib.EndType.Butt);
+            }
+        }
+        */
+
         public static PathsD Union(List<Vector2> vertices)
         {
             int cnt = vertices.Count;
@@ -1257,11 +1764,22 @@ namespace ClipperTest1
                 res.Add(new PointD(vertices[i].x, vertices[i].y));
             }
 
-            res = Clipper2Lib.Clipper.TrimCollinear(res, 7);
+            //res = Clipper2Lib.Clipper.TrimCollinear(res, 2);
             PathsD pp = new() { res };
+
+            PathD p_ = Clipper2Lib.Clipper.MakePath(new double[] { -5, -5, -5, 5, 5, 5, 5, -5 });
+            PathsD pp_ = new() { p_ };
 
             PathsD solution;
             solution = Clipper2Lib.Clipper.Union(pp, FillRule.NonZero);
+            //solution = Clipper2Lib.Clipper.BooleanOp(Clipper2Lib.ClipType.Union, pp, null, FillRule.NonZero, 0);
+
+            //solution = Clipper2Lib.Clipper.Union(pp, FillRule.NonZero);
+            //Union(PathsD subject, PathsD clip, FillRule fillRule, int precision = 2);
+            //Clipper2Lib.RectD rec = new Clipper2Lib.RectD( -5.0, 5.0, 5.0, -5.0);
+            //solution = Clipper2Lib.Clipper.RectClip(rec, pp);
+            //solution = Clipper2Lib.Clipper.Intersect(pp, pp_, FillRule.NonZero);
+
             /*
             Clipper2Lib.ClipperOffset co = new();
             Paths64 res2 = new Paths64();
@@ -1285,8 +1803,42 @@ namespace ClipperTest1
 
             solution = Clipper2Lib.Clipper.InflatePaths(solution, 0, Clipper2Lib.JoinType.Miter, Clipper2Lib.EndType.Polygon);
             */
+            //Clipper2Lib.Clipper.InflatePaths(solution, -0.5, Clipper2Lib.JoinType.Square, Clipper2Lib.EndType.Polygon);
+
+            /*
+        const int edgeCount = 19;
+        const int displayWidth = 5;
+        const int displayHeight = 5;
+        const int rectInsetDist = 2;
+        System.Random rand = new();
+            PathsD sub = new PathsD(), clp = new PathsD();
+            RectD rec = new(-5, -5,
+              5, 5);
+
+            clp.Add(rec.AsPath());
+            //sub.Add(MakeRandomPath(displayWidth, displayHeight, edgeCount, rand));
+            sub.Add(res);
+
+            /////////////////////////////////////////////////
+            solution = Clipper2Lib.Clipper.RectClip(rec, sub);
+            /////////////////////////////////////////////////
+            */
 
             return solution;
+        }
+        private static PointD MakeRandomPt(int maxWidth, int maxHeight, System.Random rand)
+        {
+            long x = rand.Next(maxWidth);
+            long y = rand.Next(maxHeight);
+            return new PointD(x, y);
+        }
+
+        public static PathD MakeRandomPath(int width, int height, int count, System.Random rand)
+        {
+            PathD result = new(count);
+            for (int i = 0; i < count; ++i)
+                result.Add(MakeRandomPt(width, height, rand));
+            return result;
         }
 
         public static PathsD CheckMin(List<Vector2> vertices)
@@ -1298,12 +1850,12 @@ namespace ClipperTest1
                 res.Add(new PointD(vertices[i].x, vertices[i].y));
             }
 
-            res = Clipper2Lib.Clipper.TrimCollinear(res, 7);
+            //res = Clipper2Lib.Clipper.TrimCollinear(res, 0);
             PathsD pp = new() { res };
 
             PathsD solution;
-            solution = Clipper2Lib.Clipper.Union(pp, FillRule.NonZero);
-
+            //solution = Clipper2Lib.Clipper.Union(pp, FillRule.NonZero);
+            /*
             for (int j = 0; j < solution.Count; j++)
             {
                 List<Vector3> v = new List<Vector3>();
@@ -1312,12 +1864,14 @@ namespace ClipperTest1
                     PathD pathList = solution[j];
                 }
             }
+            */
 
-            solution = Clipper2Lib.Clipper.InflatePaths(solution, -1.0, Clipper2Lib.JoinType.Miter, Clipper2Lib.EndType.Polygon);
+            solution = Clipper2Lib.Clipper.InflatePaths(pp, -0.5, Clipper2Lib.JoinType.Square, Clipper2Lib.EndType.Polygon);
 
             return solution;
         }
 
+        /*
         public static ClipperLib_Paths SimplifyPolygon(List<Vector2> vertices)
         {
             int cnt = vertices.Count;
@@ -1330,5 +1884,6 @@ namespace ClipperTest1
             ClipperLib_Paths pa = ClipperLib.Clipper.SimplifyPolygon(res, ClipperLib.PolyFillType.pftNonZero);
             return pa;
         }
+        */
     }
 }
