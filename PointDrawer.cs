@@ -246,6 +246,11 @@ namespace ClipperTest1
                 */
 
                 //SimplifyPath(PathD path, double epsilon, bool isOpenPath = false)
+
+                addVertex(_vertices[0], ref _vertices);
+                gLineRenderer_2.positionCount = _vertices.Count;
+                gLineRenderer_2.SetPositions(_vertices.ToArray());
+                gLineRenderer_2.loop = true;
             }
 
             if (Input.GetKeyDown(KeyCode.Q))
@@ -253,7 +258,7 @@ namespace ClipperTest1
                 //Clear();
                 
                 ClearDot();
-                List<Vector3> vertices = FixVertex(_vertices);
+                List<Vector3> vertices = ShapeVertices(_vertices);
 
                 GameObject lineObject = new GameObject();
                 lineObject.transform.position = new Vector3(0, 0, -0.2f);
@@ -378,7 +383,8 @@ namespace ClipperTest1
                 float dist = (AveragePoint - hit.point).sqrMagnitude;
                 if (dist >= _sqrThreshold)
                 {
-                    AddVertex(hit.point);
+                    //AddVertex(hit.point);
+                    addVertex(hit.point, ref _vertices);
                     _samplingVertices.Clear();
                     /*
                     List<Vector3> v3 = new List<Vector3>();
@@ -1002,7 +1008,7 @@ namespace ClipperTest1
             for (int i = 0; i < n; i++)
             {
                 int next = (i + 1) % n;
-                sum += (polygon[next].x - polygon[i].x) * (polygon[next].y + polygon[i].y);
+                sum += (polygon[next].point.x - polygon[i].point.x) * (polygon[next].point.y + polygon[i].point.y);
             }
 
             return sum > 0;
@@ -1221,14 +1227,15 @@ namespace ClipperTest1
 #endif
         public class Vertex2
         {
-            public float x;
-            public float y;
+            public Vector2 point;
             public int intersect_index;
 
             public Vertex2(Vector2 _point, int _intersect_index = -1)
             {
-                x = _point.x;
-                y = _point.y;
+                //point.x = _point.x;
+                //point.y = _point.y;
+                point.x = (float)Math.Round(_point.x, 2);
+                point.y = (float)Math.Round(_point.y, 2);
                 intersect_index = _intersect_index;
             }
         }
@@ -1237,17 +1244,17 @@ namespace ClipperTest1
             public List<Vector2> vertices = new List<Vector2>();
             public int intersect_index;
             public bool reverse;
-            public bool use;
+            public bool used;
 
             public PolyLine()
             {
                 intersect_index = -1;
                 reverse = false;
-                use = true;
+                used = true;
             }
         }
 
-        void getPolyLine(ref List<Vertex2> vertices, ref List<PolyLine> polylines)
+        void CreatePolyLine(ref List<Vertex2> vertices, ref List<PolyLine> polylines)
         {
             polylines.Add(new PolyLine());
 
@@ -1255,16 +1262,10 @@ namespace ClipperTest1
             {
                 if(vertices[i].intersect_index >= 0)
                 {
-                    //polylines[polylines.Count - 1].vertices.Add(vertices[i].point);
                     polylines[polylines.Count - 1].intersect_index = vertices[i].intersect_index;
                     polylines.Add(new PolyLine());
-                    //polylines[polylines.Count - 1].vertices.Add(vertices[i].point);
                 }
-                else
-                {
-                    
-                }
-                polylines[polylines.Count - 1].vertices.Add(new Vector2(vertices[i].x, vertices[i].y));
+                polylines[polylines.Count - 1].vertices.Add(vertices[i].point);
             }
         }
 
@@ -1275,12 +1276,12 @@ namespace ClipperTest1
                 vertices.Add(new Vertex2(_addVertex, -1));
                 return;
             }
-            Vector2 _addVertexPrev = new Vector2(vertices[vertices.Count - 1].x, vertices[vertices.Count - 1].y);
+            Vector2 addVertexPrev = vertices[vertices.Count - 1].point;
             Vector2 main_cur_vertex = Vector3.zero;
             Vector2 main_prev_vertex = Vector3.zero;
             for (int i = 0; i < vertices.Count; i++)
             {
-                var main_vertex = new Vector2(vertices[i].x, vertices[i].y);
+                var main_vertex = vertices[i].point;
                 main_prev_vertex = main_cur_vertex;
                 main_cur_vertex = main_vertex;
                 if (i == 0)
@@ -1288,21 +1289,22 @@ namespace ClipperTest1
                     continue;
                 }
 
-                /*
-                if(IsPointOnLine(_addVertex, main_prev_vertex, main_cur_vertex))
+                //ClassLine addLine = new ClassLine(addVertexPrev, _addVertex);
+                //ClassLine mainLine = new ClassLine(main_prev_vertex, main_cur_vertex);
+
+                if (intercectPoint(_addVertex, main_prev_vertex, main_cur_vertex))
                 {
-                    Debug.Log("線分上に追加点が存在します");
+                    Debug.Log("線分上に追加点が存在します: " + i);
                 }
-                */
                 //intercectPoint(_addVertex, main_prev_vertex, main_cur_vertex) || 
-                if (DoIntersect(_addVertexPrev, _addVertex, main_prev_vertex, main_cur_vertex))
+                if (DoIntersect(addVertexPrev, _addVertex, main_prev_vertex, main_cur_vertex))
                 {
-                    Vector2 intersection = FindIntersection(_addVertexPrev, _addVertex, main_prev_vertex, main_cur_vertex);
+                    Vector2 intersection = FindIntersection(addVertexPrev, _addVertex, main_prev_vertex, main_cur_vertex);
                     Vertex2 subVertex = new Vertex2(intersection, intersectIndex);
                     Vertex2 mainVertex = new Vertex2(intersection, intersectIndex);
                     intersectIndex++;
 
-                    CreateDot(new Vector3(mainVertex.x, mainVertex.y , 0));
+                    CreateDot(new Vector3(mainVertex.point.x, mainVertex.point.y , 0));
 
                     //sub
                     vertices.Insert(i, subVertex);
@@ -1311,14 +1313,14 @@ namespace ClipperTest1
                     List<Vertex2> reverse_vertices = new List<Vertex2>();
                     while (true)
                     {
-                        if (i == vertices.Count - 1) { break; }
                         int index = vertices.Count - 1;
+                        if (index == i) { break; }
                         reverse_vertices.Add(vertices[index]);
                         vertices.RemoveAt(index);
                     }
-                    for (int k = 0; k < reverse_vertices.Count; k++)
+                    for (int j = 0; j < reverse_vertices.Count; j++)
                     {
-                        vertices.Add(reverse_vertices[k]);
+                        vertices.Add(reverse_vertices[j]);
                     }
                     //main
                     vertices.Add(mainVertex);
@@ -1329,7 +1331,26 @@ namespace ClipperTest1
             vertices.Add(new Vertex2(_addVertex, -1));
         }
 
-        List<Vector3> FixVertex(List<Vector3> vertices)
+        void CheckUnusedPolyLine(ref List<PolyLine> polylines, int begin_index, int end_index, bool clockwise)
+        {
+            List<Vector2> vertices = new List<Vector2>();
+            for (int i = begin_index; i < end_index;  i++)
+            {
+                for (int j = 0; j < polylines[i].vertices.Count; j++)
+                {
+                    vertices.Add(polylines[i].vertices[j]);
+                }
+            }
+            if (IsClockwise(vertices.ToArray()) != clockwise)
+            {
+                for (int i = begin_index; i < end_index; i++)
+                {
+                    polylines[i].used = false;
+                }
+            }
+        }
+
+        List<Vector3> ShapeVertices(List<Vector3> vertices)
         {
             List<Vector3> result_vertices = new List<Vector3>();
             List<Vertex2> ele_vertices = new List<Vertex2>();
@@ -1340,7 +1361,7 @@ namespace ClipperTest1
             }
 
             List<PolyLine> polylines = new List<PolyLine>();
-            getPolyLine(ref ele_vertices, ref polylines);
+            CreatePolyLine(ref ele_vertices, ref polylines);
             float verticesZ = vertices[0].z;
 
             Debug.Log("交差数：" + intersectIndex + ", ポリライン数：" + polylines.Count);
@@ -1349,29 +1370,14 @@ namespace ClipperTest1
             for (int i = 0; i < intersectIndex; i++)
             {
                 int begin_index = -1;
-                for (int k = 0; k < polylines.Count; k++)
+                for (int j = 0; j < polylines.Count; j++)
                 {
-                    if (polylines[k].intersect_index == i)
+                    if (polylines[j].intersect_index == i)
                     {
-                        if (begin_index < 0) { begin_index = k; }
+                        if (begin_index < 0) { begin_index = j; }
                         else
                         {
-                            List<Vector2> tmp_vertices = new List<Vector2>();
-                            for (int n = begin_index + 1; n < k + 1; n++)
-                            {
-                                for (int m = 0; m < polylines[n].vertices.Count; m++)
-                                {
-                                    tmp_vertices.Add(polylines[n].vertices[m]);
-                                }
-                            }
-                            bool tmpIsClockwise = IsClockwise(tmp_vertices.ToArray());
-                            if(tmpIsClockwise != isClockwise)
-                            {
-                                for (int n = begin_index + 1; n < k + 1; n++)
-                                {
-                                    polylines[n].use = false;
-                                }
-                            }
+                            CheckUnusedPolyLine(ref polylines, begin_index + 1, j + 1, isClockwise);
                             break;
                         }
                     }
@@ -1379,10 +1385,10 @@ namespace ClipperTest1
             }
             for (int i = 0; i < polylines.Count; i++)
             {
-                if (!polylines[i].use) continue;
-                for (int k = 0; k < polylines[i].vertices.Count; k++)
+                if (!polylines[i].used) continue;
+                for (int j = 0; j < polylines[i].vertices.Count; j++)
                 {
-                    result_vertices.Add(new Vector3(polylines[i].vertices[k].x, polylines[i].vertices[k].y, verticesZ));
+                    result_vertices.Add(new Vector3(polylines[i].vertices[j].x, polylines[i].vertices[j].y, verticesZ));
                 }
             }
 
@@ -1885,5 +1891,33 @@ namespace ClipperTest1
             return pa;
         }
         */
+
+        bool addVertex(Vector3 _addVertex, ref List<Vector3> vertices, int interval = 8)
+        {
+            if (vertices.Count != 0)
+            {
+                Vector3 addVertexPrev = vertices[vertices.Count - 1];
+                Vector3 main_cur_vertex = Vector3.zero;
+                Vector3 main_prev_vertex = Vector3.zero;
+                for (int i = 0; i < vertices.Count; i += interval)
+                {
+                    var main_vertex = vertices[i];
+                    main_prev_vertex = main_cur_vertex;
+                    main_cur_vertex = main_vertex;
+                    if (i == 0) { continue; }
+
+                    if (DoIntersect(addVertexPrev, _addVertex, main_prev_vertex, main_cur_vertex))
+                    {
+                        Vector3 intersection = FindIntersection(addVertexPrev, _addVertex, main_prev_vertex, main_cur_vertex);
+                        vertices.RemoveRange(0, i);
+                        vertices.Insert(0, intersection);
+                        vertices.Add(intersection);
+                        return true;
+                    }
+                }
+            }
+            vertices.Add(_addVertex);
+            return false;
+        }
     }
 }
