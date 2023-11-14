@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using System;
+using System.Runtime.CompilerServices;
 
 /// <summary>
 /// Draw mesh by clicked points.
@@ -11,7 +12,9 @@ public class DrawMesh : MonoBehaviour
 {
     private List<int> _triangles = new List<int>();
     private List<Vector3> _vertices = new List<Vector3>();
-    private Dictionary<int, bool> _verticesBuffer = new Dictionary<int, bool>();
+    //private Dictionary<int, bool> _verticesBuffer = new Dictionary<int, bool>();
+    BitFlag bitFlag = new BitFlag();
+    
 
     private Vector3 _prevDirection = Vector3.zero;
 
@@ -39,7 +42,7 @@ public class DrawMesh : MonoBehaviour
     private void Clear()
     {
         _vertices.Clear();
-        _verticesBuffer.Clear();
+        //_verticesBuffer.Clear();
         _triangles.Clear();
     }
 
@@ -50,11 +53,14 @@ public class DrawMesh : MonoBehaviour
         // 設定された頂点を保持しておく
         _vertices.AddRange(vertices);
 
+        /*
         // 全頂点のインデックスを保持、使用済みフラグをfalseで初期化
         for (int i = 0; i < vertices.Count; i++)
         {
             _verticesBuffer.Add(i, false);
         }
+        */
+        bitFlag.Initialize(vertices.Count);
     }
 
     /// <summary>
@@ -66,14 +72,23 @@ public class DrawMesh : MonoBehaviour
 
         while (true)
         {
+            /*
             KeyValuePair<int, bool>[] left = _verticesBuffer.Where(buf => !buf.Value).ToArray();
             if (left.Length <= 3)
             {
                 break;
             }
+            */
+            int length = bitFlag.SumOffCount();
+            if (length <= 3)
+            {
+                break;
+            }
+
             DetecteTriangle();
         }
 
+        /*
         int[] keys = _verticesBuffer.Keys.ToArray();
         foreach (int key in keys)
         {
@@ -81,11 +96,20 @@ public class DrawMesh : MonoBehaviour
             {
                 _verticesBuffer[key] = true;
                 _triangles.Add(key);
-                Debug.LogFormat("_triangles.Add: {0}", key);
+                //Debug.LogFormat("_triangles.Add: {0}", key);
+            }
+        }
+        */
+        for (int i = 0; i < bitFlag.GetLengthMax(); i++)
+        {
+            if (!bitFlag.GetReg(i))
+            {
+                bitFlag.SetReg(i, true);
+                _triangles.Add(i);
             }
         }
 
-        Debug.Log("Done chekcing.");
+        //Debug.Log("Done chekcing.");
 
         Mesh mesh = new Mesh();
         mesh.vertices = _vertices.ToArray();
@@ -140,6 +164,7 @@ public class DrawMesh : MonoBehaviour
         return go;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     /// <summary>
     /// Detect triangle from far point.
     /// </summary>
@@ -154,19 +179,32 @@ public class DrawMesh : MonoBehaviour
         Vector3 b = NextPoint;
         Vector3 c = PreviousPoiont;
 
-        Vector3 edge1 = b - a;
-        Vector3 edge2 = c - a;
+        //Vector3 edge1 = b - a;
+        //Vector3 edge2 = c - a;
 
-        float angle = Vector3.Angle(edge1, edge2);
-        if (angle >= 180)
+        //float angle = Vector3.Angle(edge1, edge2);
+        //if (angle >= 180)
+
+        //float dot_ = Vector3.Dot(edge1, edge2);
+        //if (dot_ > 0.99f || dot_ < -0.99f)
+
+        Vector3 edge1 = b - a;
+        Vector3 edge2 = a - c;
+        float dot_ = Vector3.Dot(edge1.normalized, edge2.normalized);
+        if (dot_ > 0.99f)
         {
-            Debug.LogError("Something was wrong.");
+            //Debug.LogError("Something was wrong.");
+            // try to find other point.
+            _isIncluding = false;
+
+            //_verticesBuffer[_curIndex] = true;
+            bitFlag.SetReg(_curIndex, true);
             return;
         }
 
         if (IsIncludePoint())
         {
-            Debug.Log("Point is including.");
+            //Debug.Log("Point is including.");
 
             // try to find other point.
             _isIncluding = true;
@@ -184,20 +222,23 @@ public class DrawMesh : MonoBehaviour
         _triangles.Add(_curIndex);
         _triangles.Add(_nextIndex);
         _triangles.Add(_prevIndex);
-        Debug.LogFormat("_triangles.Add(_curIndex): {0}", _curIndex);
-        Debug.LogFormat("_triangles.Add(_nextIndex): {0}", _nextIndex);
-        Debug.LogFormat("_triangles.Add(_prevIndex): {0}", _prevIndex);
+        //Debug.LogFormat("_triangles.Add(_curIndex): {0}", _curIndex);
+        //Debug.LogFormat("_triangles.Add(_nextIndex): {0}", _nextIndex);
+        //Debug.LogFormat("_triangles.Add(_prevIndex): {0}", _prevIndex);
 
         bool isDtected = true;
-        _verticesBuffer[_curIndex] = isDtected;
+        //_verticesBuffer[_curIndex] = isDtected;
+        bitFlag.SetReg(_curIndex, isDtected);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     /// <summary>
     /// Check to include point in the triangle.
     /// </summary>
     /// <returns></returns>
     private bool IsIncludePoint()
     {
+        /*
         foreach (var key in _verticesBuffer.Keys)
         {
             int index = key;
@@ -218,10 +259,32 @@ public class DrawMesh : MonoBehaviour
                 return true;
             }
         }
+        */
+        for(int i = 0; i < bitFlag.GetLengthMax(); i++)
+        {
+            int index = i;
+
+            if (bitFlag.GetReg(i))
+            {
+                continue;
+            }
+
+            // skip if index in detected three points.
+            if (index == _curIndex || index == _nextIndex || index == _prevIndex)
+            {
+                continue;
+            }
+
+            if (CheckInPoint(_vertices[index]))
+            {
+                return true;
+            }
+        }
 
         return false;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     /// <summary>
     /// Get current triangle direction.
     /// </summary>
@@ -234,6 +297,7 @@ public class DrawMesh : MonoBehaviour
         return Vector3.Cross(edge1, edge2);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     /// <summary>
     /// Check including point.
     /// </summary>
@@ -273,6 +337,7 @@ public class DrawMesh : MonoBehaviour
         return true;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     /// <summary>
     /// Poition reference move to next.
     /// </summary>
@@ -283,6 +348,7 @@ public class DrawMesh : MonoBehaviour
         _prevIndex = FindPrevIndex(_curIndex);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     /// <summary>
     /// 原点から最も遠い点を探す
     /// </summary>
@@ -290,7 +356,7 @@ public class DrawMesh : MonoBehaviour
     {
         int farIndex = -1;
         float maxDist = float.MinValue;
-
+        /*
         foreach (var key in _verticesBuffer.Keys)
         {
             if (_verticesBuffer[key])
@@ -305,12 +371,28 @@ public class DrawMesh : MonoBehaviour
                 farIndex = key;
             }
         }
+        */
+        for (int i = 0; i < bitFlag.GetLengthMax(); i++)
+        {
+            if (bitFlag.GetReg(i))
+            {
+                continue;
+            }
+
+            float dist = Vector3.Distance(Vector3.zero, _vertices[i]);
+            if (dist > maxDist)
+            {
+                maxDist = dist;
+                farIndex = i;
+            }
+        }
 
         _curIndex = farIndex;
         _nextIndex = FindNextIndex(_curIndex);
         _prevIndex = FindPrevIndex(_curIndex);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     /// <summary>
     /// 指定インデックスから調べて次の有効頂点インデックスを探す
     /// </summary>
@@ -320,13 +402,14 @@ public class DrawMesh : MonoBehaviour
         while (true)
         {
             i = (i + 1) % _vertices.Count;
-            if (!_verticesBuffer[i])
+            if (!bitFlag.GetReg(i))
             {
                 return i;
             }
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     /// <summary>
     /// 指定インデックスから調べて前の有効頂点インデックスを探す
     /// </summary>
@@ -336,7 +419,7 @@ public class DrawMesh : MonoBehaviour
         while (true)
         {
             i = (i - 1) >= 0 ? i - 1 : _vertices.Count - 1;
-            if (!_verticesBuffer[i])
+            if (!bitFlag.GetReg(i))
             {
                 return i;
             }
