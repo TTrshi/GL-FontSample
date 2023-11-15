@@ -3,16 +3,18 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System;
 
 public class BitFlag
 {
-    uint[] flagReg;
+    uint[] flagReg = null;
     int flagRegLengthMax = 0;
     int flagRegArrayLength = 0;
     const int FLAG_BIT_SIZE = 32;
     public const int True = 1;
     public const int False = 0;
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Initialize(int flagLengthMax)
     {
         flagRegLengthMax = flagLengthMax;
@@ -21,6 +23,16 @@ public class BitFlag
         for(int i = 0; i< flagRegArrayLength; i++)
         {
             flagReg[i] = 0;
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Clear()
+    {
+        if(flagReg != null && flagReg.Length != 0)
+        {
+            Array.Clear(flagReg, 0, flagReg.Length);
+            Array.Resize(ref flagReg, 0);
         }
     }
 
