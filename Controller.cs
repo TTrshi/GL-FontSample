@@ -4,30 +4,38 @@ using UnityEngine;
 
 public class Controller : MonoBehaviour
 {
-    [SerializeField] private Transform target;
-    [SerializeField] private float transformForwardZ = 0.3f;
-    [SerializeField] private float angle = 0.0f;
-    [SerializeField] private float targetAngle = 0.0f;
+    float angle = 0.0f;
+    float targetAngle = 0.0f;
+    const float transformForwardZ = 0.3f;
+    const float smoothTime = 0.5f;
+    const float angleThreshold = 40.0f;
+    float velocity = 0.0f;
+
+    Transform cameraTransform;
 
     void Start()
     {
-        if (!target) target = Camera.main.transform;
-
-        TransformUpdate();
+        cameraTransform = Camera.main.transform;
     }
 
     private void LateUpdate()
     {
-        TransformUpdate();
+        FollowUpdate();
     }
 
-    void TransformUpdate()
+    void FollowUpdate()
     {
-        angle = Vector3.SignedAngle(target.transform.forward, transform.position - target.transform.position, Vector3.up);
-        float angle_threshold = 60.0f;
-        if (Mathf.Abs(angle) < angle_threshold) targetAngle = angle;
-        angle = Mathf.Lerp(angle, targetAngle, 0.005f);
-        transform.position = target.position + Quaternion.AngleAxis(angle, Vector3.up) * target.transform.forward * transformForwardZ;
-        transform.rotation = Quaternion.LookRotation(transform.position - target.transform.position);
+        Vector3 cameraForward = cameraTransform.transform.forward.normalized;
+        Vector3 toTarget = transform.position - cameraTransform.transform.position;
+        cameraForward.y = 0.0f;
+        toTarget.y = 0.0f;
+
+        angle = Vector3.SignedAngle(cameraForward, toTarget, Vector3.up);
+        if (Mathf.Abs(angle) < angleThreshold) targetAngle = angle;
+        angle = Mathf.SmoothDampAngle(angle, targetAngle, ref velocity, smoothTime);
+
+        transform.position = cameraTransform.position + Quaternion.AngleAxis(angle, Vector3.up) * (cameraForward * transformForwardZ);
+        transform.rotation = Quaternion.LookRotation(transform.position - cameraTransform.transform.position);
+
     }
 }
